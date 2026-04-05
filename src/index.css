@@ -1,0 +1,167 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 40% 4%;
+    --foreground: 190 100% 70%;
+
+    --card: 220 30% 8%;
+    --card-foreground: 190 100% 70%;
+
+    --popover: 220 30% 8%;
+    --popover-foreground: 190 100% 70%;
+
+    --primary: 190 100% 50%;
+    --primary-foreground: 220 40% 4%;
+
+    --secondary: 220 30% 12%;
+    --secondary-foreground: 190 80% 60%;
+
+    --muted: 220 20% 15%;
+    --muted-foreground: 200 30% 45%;
+
+    --accent: 190 100% 50%;
+    --accent-foreground: 220 40% 4%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 190 60% 20%;
+    --input: 190 40% 15%;
+    --ring: 190 100% 50%;
+
+    --radius: 0.5rem;
+
+    --jarvis-cyan: 190 100% 50%;
+    --jarvis-blue: 210 100% 50%;
+    --jarvis-dark: 220 40% 4%;
+    --jarvis-glow: 190 100% 70%;
+    --jarvis-dim: 200 30% 30%;
+
+    --sidebar-background: 220 30% 6%;
+    --sidebar-foreground: 190 80% 60%;
+    --sidebar-primary: 190 100% 50%;
+    --sidebar-primary-foreground: 220 40% 4%;
+    --sidebar-accent: 220 30% 12%;
+    --sidebar-accent-foreground: 190 80% 60%;
+    --sidebar-border: 190 60% 20%;
+    --sidebar-ring: 190 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Rajdhani', sans-serif;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Orbitron', sans-serif;
+  }
+}
+
+/* JARVIS Animations */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px hsl(190 100% 50% / 0.3), 0 0 60px hsl(190 100% 50% / 0.1); }
+  50% { box-shadow: 0 0 40px hsl(190 100% 50% / 0.6), 0 0 100px hsl(190 100% 50% / 0.2); }
+}
+
+@keyframes text-glow {
+  0%, 100% { text-shadow: 0 0 10px hsl(190 100% 50% / 0.5), 0 0 30px hsl(190 100% 50% / 0.2); }
+  50% { text-shadow: 0 0 20px hsl(190 100% 50% / 0.8), 0 0 50px hsl(190 100% 50% / 0.4); }
+}
+
+@keyframes arc-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes arc-spin-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scan-line {
+  0% { top: -10%; }
+  100% { top: 110%; }
+}
+
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink-caret {
+  0%, 100% { border-color: transparent; }
+  50% { border-color: hsl(190 100% 50%); }
+}
+
+@keyframes wave-bar {
+  0%, 100% { height: 10%; }
+  50% { height: 100%; }
+}
+
+@keyframes orb-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes hud-border {
+  0% { border-color: hsl(190 100% 50% / 0.2); }
+  50% { border-color: hsl(190 100% 50% / 0.6); }
+  100% { border-color: hsl(190 100% 50% / 0.2); }
+}
+
+.animate-glow-pulse { animation: glow-pulse 3s ease-in-out infinite; }
+.animate-text-glow { animation: text-glow 3s ease-in-out infinite; }
+.animate-arc-spin { animation: arc-spin 8s linear infinite; }
+.animate-arc-spin-reverse { animation: arc-spin-reverse 6s linear infinite; }
+.animate-fade-up { animation: fade-up 0.6s ease-out forwards; }
+.animate-scan-line { animation: scan-line 2s linear infinite; }
+.animate-orb-breathe { animation: orb-breathe 4s ease-in-out infinite; }
+.animate-hud-border { animation: hud-border 3s ease-in-out infinite; }
+
+.glassmorphic {
+  background: hsl(220 30% 8% / 0.7);
+  backdrop-filter: blur(20px);
+  border: 1px solid hsl(190 100% 50% / 0.2);
+}
+
+.jarvis-input {
+  @apply bg-transparent border border-border rounded-md px-4 py-3 text-foreground;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+.jarvis-input:focus {
+  outline: none;
+  border-color: hsl(190 100% 50%);
+  box-shadow: 0 0 15px hsl(190 100% 50% / 0.3), inset 0 0 15px hsl(190 100% 50% / 0.05);
+}
+
+.jarvis-btn {
+  @apply px-8 py-3 rounded-md font-semibold tracking-wider uppercase;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.8rem;
+  background: linear-gradient(135deg, hsl(190 100% 50% / 0.2), hsl(210 100% 50% / 0.2));
+  border: 1px solid hsl(190 100% 50% / 0.5);
+  color: hsl(190 100% 70%);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+.jarvis-btn:hover {
+  background: linear-gradient(135deg, hsl(190 100% 50% / 0.4), hsl(210 100% 50% / 0.4));
+  box-shadow: 0 0 30px hsl(190 100% 50% / 0.3);
+  border-color: hsl(190 100% 50% / 0.8);
+}
