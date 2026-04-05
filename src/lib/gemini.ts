@@ -3,10 +3,14 @@
 export const DEFAULT_GEMINI_KEY = 'AIzaSyCX-bkgHWIbks_fwbSL5QexwNuYIJUH1o0';
 
 const GEMINI_MODELS = [
+  'gemini-2.5-flash',
   'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-latest',
+  'gemini-2.0-flash-lite',
 ];
+
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 type Message = {
   role: 'user' | 'model';
@@ -86,64 +90,75 @@ export async function askJarvis(
   let lastError: Error | null = null;
 
   for (const model of GEMINI_MODELS) {
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            system_instruction: {
-              parts: [{ text: systemPrompt }],
-            },
-            contents: conversationHistory,
-            generationConfig: {
-              temperature: 0.85,
-              topP: 0.92,
-              topK: 40,
-              maxOutputTokens: 2048,
-            },
-            safetySettings: [
-              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
-              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
-            ],
-          }),
-        }
-      );
+    // Try each model up to 2 times with delay between
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        console.log(`[JARVIS] Trying model: ${model} (attempt ${attempt + 1})`);
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        if (response.status === 429) {
-          // Rate limited — try next model
-          lastError = new Error('Rate limited, trying backup model...');
-          continue;
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              system_instruction: {
+                parts: [{ text: systemPrompt }],
+              },
+              contents: conversationHistory,
+              generationConfig: {
+                temperature: 0.85,
+                topP: 0.92,
+                topK: 40,
+                maxOutputTokens: 2048,
+              },
+              safetySettings: [
+                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+              ],
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          console.warn(`[JARVIS] Model ${model} error:`, response.status, errData?.error?.message);
+          if (response.status === 429) {
+            // Rate limited — wait 2 seconds then retry or try next model
+            lastError = new Error('Rate limited, retrying...');
+            if (attempt === 0) {
+              await delay(2000);
+              continue; // retry same model
+            }
+            break; // move to next model
+          }
+          throw new Error(errData?.error?.message || `API error: ${response.status}`);
         }
-        throw new Error(errData?.error?.message || `API error: ${response.status}`);
+
+        const data = await response.json();
+
+        const aiText =
+          data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+          "I'm having a moment, could you try that again?";
+
+        // Clean up response for TTS
+        const cleanedText = cleanForSpeech(aiText);
+        console.log(`[JARVIS] AI Response:`, cleanedText.substring(0, 100));
+
+        // Add AI response to history
+        conversationHistory.push({
+          role: 'model',
+          parts: [{ text: cleanedText }],
+        });
+
+        return cleanedText;
+      } catch (err: any) {
+        lastError = err;
+        console.error(`[JARVIS] Error:`, err.message);
+        if (err.message === 'API_KEY_MISSING') throw err;
+        break; // move to next model
       }
-
-      const data = await response.json();
-
-      const aiText =
-        data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-        "I'm having a moment, could you try that again?";
-
-      // Clean up response for TTS
-      const cleanedText = cleanForSpeech(aiText);
-
-      // Add AI response to history
-      conversationHistory.push({
-        role: 'model',
-        parts: [{ text: cleanedText }],
-      });
-
-      return cleanedText;
-    } catch (err: any) {
-      lastError = err;
-      if (err.message === 'API_KEY_MISSING') throw err;
-      // Try next model
-      continue;
     }
   }
 
