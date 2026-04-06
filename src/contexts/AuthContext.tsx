@@ -121,16 +121,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function updateProfile(updates: Partial<Profile>) {
     if (!user) return { error: 'Not authenticated' };
 
-    const { error } = await supabase
-      .from('profiles')
-      .upsert({ id: user.id, ...updates })
-      .eq('id', user.id);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({ id: user.id, ...updates }, { onConflict: 'id' });
 
-    if (error) return { error: error.message };
+      if (error) {
+        console.error('Profile update error:', error);
+        return { error: error.message };
+      }
 
-    // Refresh profile
-    await fetchProfile(user.id);
-    return { error: null };
+      // Refresh profile
+      await fetchProfile(user.id);
+      return { error: null };
+    } catch (err: any) {
+      console.error('Profile update exception:', err);
+      return { error: err.message || 'Failed to update profile' };
+    }
   }
 
   async function refreshProfile() {

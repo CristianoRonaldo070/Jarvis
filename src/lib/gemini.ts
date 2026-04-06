@@ -95,11 +95,15 @@ export async function askJarvis(
       try {
         console.log(`[JARVIS] Trying model: ${model} (attempt ${attempt + 1})`);
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
             body: JSON.stringify({
               system_instruction: {
                 parts: [{ text: systemPrompt }],
@@ -121,9 +125,13 @@ export async function askJarvis(
           }
         );
 
+        clearTimeout(timeoutId);
+
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}));
-          console.warn(`[JARVIS] Model ${model} error:`, response.status, errData?.error?.message);
+          const errMsg = errData?.error?.message || `API error: ${response.status}`;
+          console.warn(`[JARVIS] Model ${model} error:`, response.status, errMsg);
+
           if (response.status === 429) {
             // Rate limited — wait 2 seconds then retry or try next model
             lastError = new Error('Rate limited, retrying...');
@@ -133,18 +141,43 @@ export async function askJarvis(
             }
             break; // move to next model
           }
-          throw new Error(errData?.error?.message || `API error: ${response.status}`);
+
+          if (response.status === 404 || response.status === 503) {
+            // Model not found or unavailable — skip to next model immediately
+            lastError = new Error(errMsg);
+            break;
+          }
+
+          if (response.status === 400) {
+            // Bad request — might be auth issue, try next model
+            lastError = new Error(errMsg);
+            break;
+          }
+
+          // Other errors — try next model
+          lastError = new Error(errMsg);
+          break;
         }
 
         const data = await response.json();
 
+        // Check if response was blocked by safety filters
+        if (data?.candidates?.[0]?.finishReason === 'SAFETY') {
+          return "I can't respond to that particular request. Could you rephrase your question?";
+        }
+
         const aiText =
-          data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-          "I'm having a moment, could you try that again?";
+          data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!aiText) {
+          console.warn(`[JARVIS] Empty response from ${model}, trying next model`);
+          lastError = new Error('Empty response from AI');
+          break;
+        }
 
         // Clean up response for TTS
         const cleanedText = cleanForSpeech(aiText);
-        console.log(`[JARVIS] AI Response:`, cleanedText.substring(0, 100));
+        console.log(`[JARVIS] AI Response (${model}):`, cleanedText.substring(0, 100));
 
         // Add AI response to history
         conversationHistory.push({
@@ -155,7 +188,12 @@ export async function askJarvis(
         return cleanedText;
       } catch (err: any) {
         lastError = err;
-        console.error(`[JARVIS] Error:`, err.message);
+        if (err.name === 'AbortError') {
+          console.warn(`[JARVIS] Request to ${model} timed out`);
+          lastError = new Error('Request timed out');
+        } else {
+          console.error(`[JARVIS] Error with ${model}:`, err.message);
+        }
         if (err.message === 'API_KEY_MISSING') throw err;
         break; // move to next model
       }
