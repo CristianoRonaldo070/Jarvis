@@ -41,11 +41,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!insertError && newProfile) {
           setProfile(newProfile as Profile);
+        } else {
+          console.error('Error creating profile:', insertError);
         }
         return;
       }
 
-      if (!error && data) {
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return;
+      }
+
+      if (data) {
         setProfile(data as Profile);
       }
     } catch (err) {
@@ -57,44 +64,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    async function init() {
-      try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-
-        if (mounted) {
-          setSession(currentSession);
-          setUser(currentSession?.user ?? null);
-
-          if (currentSession?.user) {
-            await fetchProfile(currentSession.user.id);
-          }
-          setLoading(false);
-        }
-      } catch {
-        if (mounted) setLoading(false);
-      }
-    }
-
-    init();
-
-    // Listen for auth changes
+    // Set up auth state change listener — this handles initial session + changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
-        if (mounted) {
-          setSession(newSession);
-          setUser(newSession?.user ?? null);
+      async (event, newSession) => {
+        if (!mounted) return;
 
-          if (newSession?.user) {
-            await fetchProfile(newSession.user.id);
-          } else {
-            setProfile(null);
-          }
+        console.log('[Auth] State change:', event, !!newSession);
+
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+
+        if (newSession?.user) {
+          // Use setTimeout to avoid Supabase deadlock on init
+          setTimeout(async () => {
+            if (mounted) {
+              await fetchProfile(newSession.user.id);
+              if (mounted) setLoading(false);
+            }
+          }, 0);
+        } else {
+          setProfile(null);
+          setLoading(false);
         }
       }
     );
 
+    // Safety timeout — ensure loading always becomes false
+    const safetyTimeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn('[Auth] Safety timeout — forcing loading to false');
+        setLoading(false);
+      }
+    }, 5000);
+
     return () => {
       mounted = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
@@ -122,16 +127,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return { error: 'Not authenticated' };
 
     try {
-      const { error } = await supabase
+      // First try update (for existing profiles)
+      const { error: updateError } = await supabase
         .from('profiles')
-        .upsert({ id: user.id, ...updates }, { onConflict: 'id' });
+        .update(updates)
+        .eq('id', user.id);
 
-      if (error) {
-        console.error('Profile update error:', error);
-        return { error: error.message };
+      if (updateError) {
+        console.error('Profile update error:', updateError);
+
+        // If update fails, try upsert as fallback (profile might not exist)
+        const { error: upsertError } = await supabase
+          .from('profiles')
+          .upsert({ id: user.id, ...updates }, { onConflict: 'id' });
+
+        if (upsertError) {
+          console.error('Profile upsert error:', upsertError);
+          return { error: upsertError.message };
+        }
       }
 
-      // Refresh profile
+      // Refresh profile to get latest data
       await fetchProfile(user.id);
       return { error: null };
     } catch (err: any) {

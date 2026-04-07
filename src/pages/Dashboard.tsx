@@ -39,6 +39,7 @@ const Dashboard = () => {
   const [selectedVoiceName, setSelectedVoiceName] = useState("");
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
+  const [saveFeedback, setSaveFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const navigate = useNavigate();
   const { user, profile, signOut, updateProfile, loading } = useAuth();
   const stateRef = useRef<JarvisState>("idle");
@@ -185,8 +186,11 @@ const Dashboard = () => {
           if (err.message === "API_KEY_MISSING") {
             setErrorMessage("API key missing. Set it in Settings.");
             setShowSettings(true);
+          } else if (err.message.includes("rate limited") || err.message.includes("Rate limited")) {
+            setErrorMessage("Default API key is rate limited. Set your own free key in Settings.");
+            setShowSettings(true);
           } else {
-            setErrorMessage("Couldn't process that. Try again.");
+            setErrorMessage(err.message || "Couldn't process that. Try again.");
           }
           setJarvisState("error");
           setStatusText("ERROR");
@@ -238,15 +242,35 @@ const Dashboard = () => {
   };
 
   const handleSaveApiKey = async () => {
-    if (apiKeyInput.trim()) {
-      await updateProfile({ gemini_api_key: apiKeyInput.trim() });
-      setApiKeyInput("");
-      setShowSettings(false);
+    if (!apiKeyInput.trim()) return;
+    setSaveFeedback(null);
+    const { error } = await updateProfile({ gemini_api_key: apiKeyInput.trim() });
+    if (error) {
+      playErrorSound();
+      setSaveFeedback({ type: 'error', msg: `Failed to save: ${error}` });
+    } else {
       playClickSound();
+      setSaveFeedback({ type: 'success', msg: 'API key saved successfully!' });
+      setApiKeyInput("");
+      setTimeout(() => {
+        setSaveFeedback(null);
+        setShowSettings(false);
+      }, 1500);
     }
   };
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center animate-fade-up">
+          <div className="w-16 h-16 mx-auto rounded-full border border-primary/30 flex items-center justify-center animate-glow-pulse mb-4">
+            <div className="w-6 h-6 rounded-full bg-primary/20 shadow-[0_0_30px_10px_hsl(190_100%_50%_/_0.2)]" />
+          </div>
+          <p className="font-orbitron text-xs tracking-[0.2em] text-primary/60">INITIALIZING...</p>
+        </div>
+      </div>
+    );
+  }
 
   const isActive = jarvisState !== "idle" && jarvisState !== "error";
 
@@ -313,7 +337,12 @@ const Dashboard = () => {
                     SAVE
                   </button>
                 </div>
-                {apiKey && (
+                {saveFeedback && (
+                  <p className={`text-xs font-rajdhani mt-1 ${saveFeedback.type === 'success' ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {saveFeedback.msg}
+                  </p>
+                )}
+                {!saveFeedback && apiKey && (
                   <p className="text-xs text-primary/50 font-rajdhani mt-1">✓ API key configured</p>
                 )}
                 <a

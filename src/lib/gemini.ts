@@ -3,9 +3,9 @@
 export const DEFAULT_GEMINI_KEY = 'AIzaSyCX-bkgHWIbks_fwbSL5QexwNuYIJUH1o0';
 
 const GEMINI_MODELS = [
-  'gemini-2.5-flash',
   'gemini-2.0-flash',
   'gemini-2.0-flash-lite',
+  'gemini-2.5-flash',
 ];
 
 function delay(ms: number) {
@@ -134,7 +134,7 @@ export async function askJarvis(
 
           if (response.status === 429) {
             // Rate limited — wait 2 seconds then retry or try next model
-            lastError = new Error('Rate limited, retrying...');
+            lastError = new Error('RATE_LIMITED');
             if (attempt === 0) {
               await delay(2000);
               continue; // retry same model
@@ -200,7 +200,10 @@ export async function askJarvis(
     }
   }
 
-  // All models failed
+  // All models failed — provide helpful error message
+  if (lastError?.message === 'RATE_LIMITED') {
+    throw new Error('API key rate limited. Please set your own free API key in Settings.');
+  }
   throw lastError || new Error('All AI models are currently unavailable. Please try again.');
 }
 
